@@ -5,7 +5,6 @@ SetWorkingDir A_ScriptDir
 
 ;Todo:
 ;;Add ability to find "HotKey" dynamically configured
-;;Check running programs (because missing Shortcuts which is included in base file
 ;;Issue with screen percent still going outside main screen.
 
 ;These can be changed in settings, otherwise these are just defaults
@@ -20,6 +19,7 @@ Global mstrFont := "Courier New"
 	global mMapFileList := Map() ;keeps track of all files processed.
 	global maMapAllKeys := Map() ;Keep track of all hotkeys to check for dups later on
 
+global mblnGuiCreated := False
 
 #F1:: ; Display Help for all AHK files in current folder
 {
@@ -35,13 +35,13 @@ Global mstrFont := "Courier New"
 	mapHelp := map() ;declare main array to hold all help information
 	mapScripts := map()
 	
-	GetActiveScripts_Location(&mapScripts)    ; Get Path of all AHK Scripts
+	GetActiveScripts(&mapScripts) ;used to get running scripts
+	;GetActiveScripts_Location(&mapScripts)    ; Get Path of all AHK Scripts
 	for intIndex, mapScript in mapScripts     ; Loop Through AHK Script Files
 	{
 		ParseFile(A_WorkingDir, mapScript, &mapHelp)
 		
 	}
-	;GetActiveScripts(&nothing) ;used to get running scripts
 	
 	BuildGUI_Text(mapHelp)
 	;We can either have a different screen pop up and/or show "(DUP)" at the start of each entry
@@ -64,7 +64,6 @@ ParseFile(pstrParentDir, pmapFileInfo, &pmapHelp)
 {
 	if (Trim(pmapFileInfo["Path"])!="") ;No need to look at file if it is just blank
 	{
-		
 		IF !AHKFileExists(pmapFileInfo["Title"])
 		{
 			;Initialize count of new entries to 0
@@ -90,10 +89,10 @@ ParseFile(pstrParentDir, pmapFileInfo, &pmapHelp)
 					EvaluateLine(pstrParentDir, A_LoopReadLine, &strhotkey, &strcomment, &pmapHelp)
 					if (strhotkey!= "")
 					{
-					pmapHelp[pmapFileInfo["Title"]]["Count"] += 1
-					astrKeys.set(strHotKey,strComment)
-					
-					TrackAllkeys(pmapFileInfo["Title"],strHotKey)
+						pmapHelp[pmapFileInfo["Title"]]["Count"] += 1
+						astrKeys.set(strHotKey,strComment)
+						
+						TrackAllkeys(pmapFileInfo["Title"],strHotKey)
 					}
 				}
 			}
@@ -135,7 +134,6 @@ EvaluateLine(pstrParentDir, pstrLine, &pstrHotKey, &pstrComment, &pmapHelp)
 
 		;This resets the pstrParentDir to the current file using ParseFilePathName          
 		ParseFile(pstrParentDir, ParseFilePathName(&pstrParentDir, pstrLine), &pmapHelp)
-		;msgbox pstrLine
 	}
 	; else if RegExmatch(pstrLine, "i)^\s*hotkey\s+(.*?),(.*?)", &strHotKey_Matches)
 	; {
@@ -167,19 +165,17 @@ ParseFilePathName(&pstrParentDir,pstrFilePath)
 		pstrFilePath := StrReplace(pstrFilePath, "A_AppDataCommon", A_AppDataCommon)
 		
 		;Hacky way to remove this from the primary script path
-		pstrFilePath := StrReplace(pstrFilePath, "\AHK_Scripts\")
-		;pstrFilePath := strReplace(pstrFilePath,"`"") ;remove quotes from path
+		pstrFilePath := StrReplace(pstrFilePath, "AutoHotkey\")
 		pstrFilePath := strReplace(pstrFilePath,chr(34)) ;remove quotes from path
 				
 	}
 	strFile_Path := RegExReplace(pstrFilePath, "^(.ahk).+$", "$1")
-
-
+	
 	;SplitPath(File_Path, &File_Name, &File_Dir, &File_Ext, &File_Title)
-
+	
 	IF substr(strFile_Path,0,strLen(pstrParentDir))!= pstrParentDir
 	{
-		;msgbox "does not match`n" "File: " File_Path "`nDir: " pstrParentDir
+		;msgbox "does not match`n" "File: " strFile_Path "`nDir: " pstrParentDir
 		if substr(strFile_path,0,1) = "\"
 		{
 			strFile_Path := pstrParentDir strFile_Path
@@ -219,48 +215,27 @@ GetActiveScripts(&pmapScripts)
 
 	loop ahk_windows.length
 	{
-		splitPath(wingettitle(ahk_windows[a_index]), &strFile_Name, &strFile_Dir, &strFile_Ext, &strFile_Title)
+		strFile_Path := wingettitle(ahk_windows[a_index])
 
-		IF !AHKFileExists(strFile_Title)
+		;remove trailing information about programming running it
+		IF RegExMatch(strFile_Path,"Umi).+.ahk", &strMatches)
 		{
-			strtest := "visiting all windows "
-			strtest .= a_index
-			strtest .= " of "
-			strtest .= ahk_windows.length
-			strtest .= "`nahk id "
-			strtest .= ahk_windows[a_index]
-			strtest .= "`nahk_class " wingetclass(ahk_windows[a_index])
-			strtest .= "`nthis title " strFile_Title
-			msgbox strtest
+			strFile_Path := strMatches[0]
 		}
-	}
-	; ; AHK_Windows := Array()
-	; ; AHK_Windows := AHK_Windows.Length
-	; ; For v in oAHK_Windows
-	; ; {  
-		; ; aAHK_Windows.Push(v)
-	; ; }
-	; ; pmapScripts := map()
-	; Loop AHK_Windows.Length
-	; {
-		; hWnd := AHK_Windows[A_Index]
-		; Win_Name := WinGetTitle("ahk_id " hWnd)
-
-
-		; strFile_Path := RegExReplace(Win_Name, "^(.*) - AutoHotkey v[0-9\.]+$", "$1")
-		; msgbox "Here: " Win_Name "`n" strFile_Path
-		; SplitPath(strFile_Path, &strFile_Name, &strFile_Dir, &strFile_Ext, &strFile_Title)
-
-		; pmapScripts[A_Index] := Map()
-		; pmapScripts[A_Index].set("Path",strFile_Path)
-		; pmapScripts[A_Index].set("Name", strFile_Name)
-		; pmapScripts[A_Index].set("Dir", strFile_Dir)
-		; pmapScripts[A_Index].set("Ext", strFile_Ext)
-		; pmapScripts[A_Index].set("Title", strFile_Title)
-		; ;pmapScripts[A_Index,"hWnd"] := hWnd
-		; ;list .= strFile_Path "`n"
-		; ;msgbox pmapScripts[A_Index]["Path"]
-	; }
+		
+		splitPath(strFile_Path, &strFile_Name, &strFile_Dir, &strFile_Ext, &strFile_Title)
+		;strFile_Path := rtrim(strMatches[0],".ahk")
+		strFile_Path := strMatches[0]
+		;msgbox strFile_Path
+		pmapScripts[A_Index] := Map()
+		pmapScripts[A_Index].set("Path",strFile_Path)
+		pmapScripts[A_Index].set("Name", strFile_Name)
+		pmapScripts[A_Index].set("Dir", strFile_Dir)
+		pmapScripts[A_Index].set("Ext", strFile_Ext)
+		pmapScripts[A_Index].set("Title", strFile_Title)
+		
+	}	
+	
 	DetectHiddenWindows Setting_A_DetectHiddenWindows
 }
 ;This is if we want to grab only the active programs running
@@ -335,7 +310,8 @@ Format_Line(pstrHot,pstrInfo,plngPos_Info)
 ;** Methods - Tracking ****
 ;**************************
 AHKFileExists(pstrTitle)
-{
+{ 
+
 	if mMapFileList.has(pstrTitle)
 	{
 		mMapFileList[pstrTitle]["Count"] += 1
@@ -371,7 +347,14 @@ TrackAllkeys(pstrTitle,pstrHotKey)
 ;**************************
 BuildGUI_Text(pmapHelp)
 {
-
+	global
+	if mblnGuiCreated
+	{
+		mygui.Destroy()
+		global mblnGuiCreated := False
+	}
+	
+	
 	lngPos_Info := 25 ; spacing from the right to the start of the comment
 	strDisplay := "" ;This is the main text that will display on the main screen
 	lngRowCount := 0 ;Keep track of how many rows of text.
@@ -434,6 +417,7 @@ BuildGUI_Text(pmapHelp)
 	}
 
 	myGui := Gui()
+	global mblnGuiCreated := True
 	
 	
 		FileMenu := Menu()
@@ -462,7 +446,8 @@ BuildGUI_Text(pmapHelp)
 
 GuiEscape(myGui)
 {
-	myGui.Show("Hide")
+	myGui.destroy()
+	global mblnGuiCreated := False
 }
 
 GetMonitorHeight(&plngDisplaySize)
